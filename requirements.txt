@@ -1,0 +1,6 @@
+streamlit
+boto3
+pdfplumber
+python-pptx
+fpdf2
+python-docx

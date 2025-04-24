@@ -1,0 +1,5 @@
+To ensure compliance with the General Data Protection Regulation (GDPR), the Supplier will implement data protection controls including access controls, encryption, retention policies, and logging of all user access and data retrieval.
+
+DS Smith shall act as the data controller and the Supplier shall act as the data processor. The system will be designed to ensure compliance with subject rights including data access, correction, and erasure as required under applicable laws.
+
+Data shall be retained in accordance with DS Smith’s internal policies and securely deleted upon request or termination of contract.
