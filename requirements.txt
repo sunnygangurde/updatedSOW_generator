@@ -4,3 +4,4 @@ pdfplumber
 python-pptx
 fpdf2
 python-docx
+reportlab

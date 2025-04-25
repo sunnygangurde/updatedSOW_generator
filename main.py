@@ -1,4 +1,3 @@
-#UPDATED CODE
 import streamlit as st
 import os
 from sow_backend import process_file_and_generate_sow
@@ -32,41 +31,44 @@ st.markdown("""
 
 # --- Header ---
 st.title("📄 Statement of Work (SoW) Generator")
-st.markdown("Generate professional SoWs automatically from proposals in minutes.")
+st.markdown("Generate professional, client-ready SoWs automatically from your proposal documents in minutes.")
 
-# --- File Upload ---
+# --- Upload Section ---
 st.markdown("#### 1. Upload Proposal File")
 uploaded_file = st.file_uploader(
-    "Supported formats: PDF, PPTX, DOCX, TXT, XLSX",
-    type=["pdf", "pptx", "docx", "txt", "xlsx"]
+    "Supported formats: PDF, PPTX, DOCX, TXT",
+    type=["pdf", "pptx", "docx", "txt"]
 )
 
 # --- Format Selection ---
 st.markdown("#### 2. Choose Output Format")
-format_option = st.selectbox("Select format:", ["pdf", "docx", "txt", "pptx", "xlsx"])
+format_option = st.selectbox("Select format:", ["pdf", "docx", "txt", "pptx"])
 
 # --- Generate Button ---
-if st.button("🚀 Generate SoW"):
+st.markdown("#### 3. Generate SoW")
+if st.button("🚀 Generate Statement of Work"):
     if not uploaded_file:
-        st.error("Please upload a proposal file.")
+        st.error("❗ Please upload a proposal file first.")
     else:
         try:
-            # Save uploaded file temporarily
-            temp_file_path = uploaded_file.name
+            # Save uploaded file to disk temporarily
+            temp_file_path = f"temp_{uploaded_file.name}"
             with open(temp_file_path, "wb") as f:
                 f.write(uploaded_file.getbuffer())
 
-            with st.spinner("Generating SoW, please wait..."):
+            with st.spinner("⚙️ Processing... Generating your SoW..."):
                 sow_text, download_url = process_file_and_generate_sow(temp_file_path, output_format=format_option)
 
             st.success("✅ SoW generated successfully!")
             st.markdown("#### 📥 Download Your SoW")
-            st.markdown(f"[Download SoW]({download_url})", unsafe_allow_html=True)
+            st.markdown(f"[Click here to download]({download_url})", unsafe_allow_html=True)
 
-            with st.expander("🔍 Preview SoW Content"):
-                st.text(sow_text[:5000] + ("..." if len(sow_text) > 5000 else ""))
-
-            os.remove(temp_file_path)
+            st.markdown("#### 🔍 Preview of Generated SoW")
+            st.text(sow_text[:5000] + ("..." if len(sow_text) > 5000 else ""))
 
         except Exception as e:
-            st.error(f"Something went wrong: {e}")
+            st.error(f"🚨 Error while generating SoW: {e}")
+
+        finally:
+            if os.path.exists(temp_file_path):
+                os.remove(temp_file_path)

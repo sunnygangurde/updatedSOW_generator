@@ -1,5 +1,3 @@
-# UPDATED CODE
-
 import json
 import uuid
 import logging
@@ -44,22 +42,23 @@ def deduplicate_lines(text):
             result.append(line)
     return "\n".join(result)
 
-# === Bedrock LLM Call ===
-def call_bedrock(prompt):
+# === Bedrock LLM Call with System Prompt ===
+def call_bedrock(system_prompt, user_prompt):
     try:
         logger.info("Calling Bedrock with prompt...")
+        payload = {
+            "inputText": f"{system_prompt}\n\n{user_prompt}",
+            "textGenerationConfig": {
+                "maxTokenCount": 500,
+                "temperature": 0.3,
+                "topP": 0.9
+            }
+        }
         response = bedrock.invoke_model(
             modelId="amazon.titan-text-express-v1",
             contentType="application/json",
             accept="application/json",
-            body=json.dumps({
-                "inputText": prompt,
-                "textGenerationConfig": {
-                    "maxTokenCount": 500,
-                    "temperature": 0.3,
-                    "topP": 0.9
-                }
-            })
+            body=json.dumps(payload)
         )
         result = json.loads(response["body"].read())
         return result["results"][0]["outputText"].strip()
@@ -67,7 +66,7 @@ def call_bedrock(prompt):
         logger.error(f"Bedrock error: {e}")
         return f"[ERROR generating section: {str(e)}]"
 
-# === Section Generator ===
+# === Section Generator with System + User Prompt ===
 def generate_section(title, instruction, proposal_text, keywords=None, use_gdpr_template=False):
     if use_gdpr_template:
         try:
@@ -79,12 +78,28 @@ def generate_section(title, instruction, proposal_text, keywords=None, use_gdpr_
     if keywords and not any(k in proposal_text.lower() for k in keywords):
         return "To be defined during project discovery."
 
-    prompt = f"""
-You are a consultant. Write the **{title}** for an SoW. Instruction: {instruction}
-Context:
-{proposal_text[:2000]}
-"""
-    result = call_bedrock(prompt)
+    system_prompt = (
+        "You are an expert Customer Success Manager responsible for translating a Pre-Sales Consultant’s client proposal "
+        "into a clean, accurate, and professional Statement of Work (SoW). Your job is to extract only what is relevant "
+        "from the proposal and structure it into individual SoW sections.\n\n"
+        "Focus on:\n"
+        "- Clarity, accuracy, and alignment with standard delivery models.\n"
+        "- Realistic and actionable phrasing that reflects what was committed in the proposal.\n"
+        "- Short paragraphs or bullet points where appropriate.\n"
+        "- No assumptions or hallucinations — only use what is present in the provided context.\n"
+        "- Maintain a formal yet client-friendly tone, suitable for executive stakeholders.\n\n"
+        "If a section’s required information is missing, respond with: “To be defined during project discovery.”\n"
+        "Do not include the phrase “As per the proposal” or restate content unnecessarily."
+    )
+
+    user_prompt = (
+        f"You are creating the **{title}** section of a Statement of Work (SoW).\n\n"
+        f"Instruction: {instruction}\n\n"
+        f"Use only the context below from the client proposal made by the Pre-Sales Consultant:\n"
+        f"---\n{proposal_text[:2000]}\n---"
+    )
+
+    result = call_bedrock(system_prompt, user_prompt)
     return deduplicate_lines(result)
 
 # === SoW Sections ===
@@ -120,12 +135,6 @@ def extract_docx(file_bytes):
     doc = Document("temp_local.docx")
     return "\n".join(p.text for p in doc.paragraphs)
 
-def extract_xlsx(file_bytes):
-    with open("temp_local.xlsx", "wb") as f:
-        f.write(file_bytes)
-    df = pd.read_excel("temp_local.xlsx", sheet_name=None)
-    return "\n\n".join([df[s].to_string(index=False) for s in df])
-
 def extract_text(file_path):
     _, ext = os.path.splitext(file_path)
     with open(file_path, "rb") as f:
@@ -138,8 +147,6 @@ def extract_text(file_path):
         return extract_pptx(file_bytes)
     elif ext == ".docx":
         return extract_docx(file_bytes)
-    elif ext == ".xlsx":
-        return extract_xlsx(file_bytes)
     else:
         return file_bytes.decode("utf-8", errors="ignore")
 
@@ -200,13 +207,6 @@ def export_pptx(content: str) -> bytes:
     prs.save(output)
     return output.getvalue()
 
-def export_xlsx(content: str) -> bytes:
-    df = pd.DataFrame([line.split(": ", 1) if ": " in line else [line, ""] for line in content.split("\n")])
-    output = BytesIO()
-    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-        df.to_excel(writer, index=False, header=["Section", "Content"])
-    return output.getvalue()
-
 # === Main Process ===
 def process_file_and_generate_sow(input_file_path: str, output_format: str = "txt"):
     proposal_id = str(uuid.uuid4())
@@ -233,9 +233,6 @@ def process_file_and_generate_sow(input_file_path: str, output_format: str = "tx
     elif output_format == "pptx":
         sow_bytes = export_pptx(final_sow)
         file_key = f"sows/{proposal_id}.pptx"
-    elif output_format == "xlsx":
-        sow_bytes = export_xlsx(final_sow)
-        file_key = f"sows/{proposal_id}.xlsx"
     else:
         sow_bytes = export_txt(final_sow)
         file_key = f"sows/{proposal_id}.txt"
